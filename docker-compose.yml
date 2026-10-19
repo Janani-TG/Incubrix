@@ -1,0 +1,140 @@
+name: incubrix
+
+services:
+  # ----------------------------------------------------------------------------
+  # 1. Main IncuBrix Distribution Network Application
+  # ----------------------------------------------------------------------------
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: incubrix-app
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - HOST=0.0.0.0
+      - API_PREFIX=/api/v1
+      - LOG_LEVEL=info
+      # Destination Connector Integrations
+      - GHOST_API_URL=http://ghost:2368
+      - GHOST_ADMIN_API_KEY=64f1a2b3c4d5e6f7a8b9c0d1:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      - LEMMY_INSTANCE_URL=http://lemmy:8536
+      - LEMMY_AUTH_TOKEN=placeholder_lemmy_jwt_token
+      - LEMMY_COMMUNITY_ID=1
+      - DEVTO_API_KEY=placeholder_devto_api_key
+      - DEVTO_BASE_URL=https://dev.to/api
+      - DISCOURSE_API_KEY=placeholder_discourse_api_key
+      - DISCOURSE_API_USERNAME=system
+      - DISCOURSE_BASE_URL=http://localhost:4200
+      - WEBHOOK_URL=http://localhost:9000/webhook
+      - WEBHOOK_SECRET=placeholder_32_byte_secret_hex_test
+      - ASSISTED_OUTPUT_DIR=/app/artifacts/assisted_packs
+      - CERTIFICATION_OUTPUT_DIR=/app/artifacts/certification
+    volumes:
+      - app_artifacts:/app/artifacts
+    depends_on:
+      ghost:
+        condition: service_started
+      lemmy:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - incubrix-network
+
+  # ----------------------------------------------------------------------------
+  # 2. Ghost CMS Instance (Local Testing)
+  # ----------------------------------------------------------------------------
+  ghost:
+    image: ghost:5-alpine
+    container_name: incubrix-ghost
+    ports:
+      - "2368:2368"
+    environment:
+      # In development mode, Ghost automatically uses SQLite without external DB dependencies
+      - NODE_ENV=development
+      - url=http://localhost:2368
+    volumes:
+      - ghost_content:/var/lib/ghost/content
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:2368/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 25s
+    restart: unless-stopped
+    networks:
+      - incubrix-network
+
+  # ----------------------------------------------------------------------------
+  # 3. Lemmy Database (PostgreSQL required by Lemmy)
+  # ----------------------------------------------------------------------------
+  lemmy-db:
+    image: postgres:15-alpine
+    container_name: incubrix-lemmy-db
+    environment:
+      - POSTGRES_USER=lemmy
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=lemmy
+    volumes:
+      - lemmy_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lemmy -d lemmy"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - incubrix-network
+
+  # ----------------------------------------------------------------------------
+  # 4. Lemmy Federated Link Aggregator Instance (Local Testing)
+  # ----------------------------------------------------------------------------
+  lemmy:
+    image: dessalines/lemmy:0.19.5
+    container_name: incubrix-lemmy
+    ports:
+      - "8536:8536"
+    environment:
+      - RUST_LOG=warn,lemmy_server=info
+    volumes:
+      - ./docker/lemmy.hjson:/config/lemmy.hjson:ro
+    depends_on:
+      lemmy-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8536/api/v3/site || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+    networks:
+      - incubrix-network
+
+# ------------------------------------------------------------------------------
+# Persistent Volumes
+# ------------------------------------------------------------------------------
+volumes:
+  app_artifacts:
+    name: incubrix_app_artifacts
+  ghost_content:
+    name: incubrix_ghost_content
+  lemmy_postgres_data:
+    name: incubrix_lemmy_postgres_data
+
+# ------------------------------------------------------------------------------
+# Networks
+# ------------------------------------------------------------------------------
+networks:
+  incubrix-network:
+    name: incubrix_network
+    driver: bridge

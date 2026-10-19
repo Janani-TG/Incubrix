@@ -12,6 +12,7 @@ A modular, production-grade Node.js and TypeScript distribution backend designed
 - **Asynchronous Background Processing**: Automatic offloading of long-running operations (>2s threshold) or explicitly requested asynchronous workflows (`async: true`) into trackable background jobs (HTTP 202).
 - **OpenAPI 3.1 Specification**: Comprehensive, validated OpenAPI 3.1 document (`openapi.yaml`) covering all routes, request/response models, headers, and status codes.
 - **Connector Certification Harness**: Repeatable capability verification suite with strict mock-vs-live isolation, safe test content cleanup, path-traversal protection, and automated credential redaction.
+- **Docker Compose Local Testing**: Pre-configured multi-container environment supporting the core application, Ghost CMS, Lemmy federated aggregator, and PostgreSQL with automated health checks.
 
 ---
 
@@ -53,6 +54,7 @@ A modular, production-grade Node.js and TypeScript distribution backend designed
 
 - Node.js >= 18.0.0
 - npm >= 9.0.0
+- Docker & Docker Compose (optional, for local container testing)
 
 ### Installation
 
@@ -75,8 +77,9 @@ HOST=0.0.0.0
 NODE_ENV=development
 API_PREFIX=/api/v1
 
-# Optional destination credentials for live integration
+# Destination Connector Configuration
 DEVTO_API_KEY=
+DEVTO_BASE_URL=https://dev.to/api
 GHOST_ADMIN_API_KEY=
 GHOST_API_URL=http://localhost:2368
 DISCOURSE_API_KEY=
@@ -84,8 +87,11 @@ DISCOURSE_API_USERNAME=system
 DISCOURSE_BASE_URL=http://localhost:4200
 LEMMY_AUTH_TOKEN=
 LEMMY_INSTANCE_URL=http://localhost:8536
+LEMMY_COMMUNITY_ID=1
 WEBHOOK_URL=
 WEBHOOK_SECRET=
+ASSISTED_OUTPUT_DIR=./artifacts/assisted_packs
+CERTIFICATION_OUTPUT_DIR=./artifacts/certification
 ```
 
 ---
@@ -105,11 +111,86 @@ npm run build
 npm start
 ```
 
-### Automated Tests
-Run Vitest across all 23 test suites (unit, integration, reliability, API, and OpenAPI validation):
+### Automated Testing
+
 ```bash
+# Run all unit, reliability, connector, and API test suites (offline / mocks)
 npm test
+
+# Run End-to-End API and local service integration tests
+npm run test:integration
+
+# Run tests in watch mode
+npm run test:watch
 ```
+
+---
+
+## Docker Setup & Local Services
+
+The repository includes a production multi-stage `Dockerfile` and a `docker-compose.yml` for local service integration testing.
+
+### Services Defined
+
+| Service | Image / Build | Port | Purpose | Health Check |
+| :--- | :--- | :--- | :--- | :--- |
+| `app` | Multi-stage Node.js 22 | `3000:3000` | IncuBrix Distribution API | `wget -qO- http://localhost:3000/health` |
+| `ghost` | `ghost:5-alpine` | `2368:2368` | Local Ghost CMS Instance (SQLite dev mode) | `wget -qO- http://localhost:2368/` |
+| `lemmy-db` | `postgres:15-alpine` | Internal | PostgreSQL 15 for Lemmy | `pg_isready -U lemmy -d lemmy` |
+| `lemmy` | `dessalines/lemmy:0.19.5` | `8536:8536` | Local Lemmy Link Aggregator | `wget -qO- http://localhost:8536/api/v3/site` |
+
+### Docker Commands
+
+#### 1. Start Services
+```bash
+docker compose up -d
+```
+
+#### 2. Check Readiness and Health Checks
+```bash
+docker compose ps
+```
+
+#### 3. Inspect Container Logs
+```bash
+# View app logs
+docker compose logs -f app
+
+# View Ghost CMS logs
+docker compose logs -f ghost
+
+# View Lemmy logs
+docker compose logs -f lemmy
+```
+
+#### 4. Stop Services
+```bash
+# Stop containers (preserves volume data)
+docker compose down
+
+# Stop containers and purge persistent data volumes
+docker compose down -v
+```
+
+### Local Service Setup Walkthrough
+
+#### Configuring Local Ghost CMS
+1. Run `docker compose up -d ghost`.
+2. Open `http://localhost:2368/ghost` in your browser.
+3. Complete the initial Ghost admin setup wizard.
+4. Navigate to **Settings > Integrations > Add Custom Integration**.
+5. Copy the generated **Admin API Key** into `GHOST_ADMIN_API_KEY` in `.env`.
+
+#### Configuring Local Lemmy
+1. Run `docker compose up -d lemmy lemmy-db`.
+2. The instance is seeded with credentials from `docker/lemmy.hjson` (`admin` / `password123`).
+3. Fetch your JWT authentication token via:
+   ```bash
+   curl -X POST http://localhost:8536/api/v3/user/login \
+     -H "Content-Type: application/json" \
+     -d '{"username_or_email":"admin","password":"password123"}'
+   ```
+4. Set `LEMMY_AUTH_TOKEN` in `.env` with the returned `jwt` value.
 
 ---
 
@@ -273,11 +354,12 @@ npm test tests/api/openapi.test.ts
 
 ---
 
-## Security and Authentication Limitations
+## Known Limitations & Security Considerations
 
-> [!IMPORTANT]
-> **API Authentication Limitation**: As defined by the PS4 assessment brief, no user/service authentication layer (such as OAuth2, JWT, or API keys) has been implemented on `/api/v1/*` routes.
->
-> **Operational Guidance**:
-> - Do not expose this service directly to the public Internet without an upstream API gateway, reverse proxy, or VPN.
-> - Outgoing platform credentials must be provided via environment variables only and are redacted from all diagnostic logs and certification reports.
+1. **API Authentication Limitation**: As scoped by the assessment brief, no consumer authentication mechanism (such as JWT, Bearer token, or OAuth2) is enforced on `/api/v1/*` routes.
+   - **Operational Recommendation**: Never expose this service directly to public networks without an upstream API gateway, reverse proxy, or VPN.
+2. **In-Memory Storage Backends**: Idempotency records, background job queues, publication history records, and certification reports are stored in memory (`InMemoryIdempotencyStore`, `InMemoryJobStore`, `InMemoryPublicationHistoryStore`, `CertificationStore`). Restarting the service will reset these stores. Production deployment would require external datastores such as Redis or PostgreSQL.
+3. **External Platform Live Tests**: Connectors targeting third-party cloud services (DEV.to, live Discourse, production Lemmy instances) require valid credentials and are not run automatically in CI. Automated test suites strictly use deterministic mocks and injected HTTP clients.
+4. **Local Service Manual Setup**:
+   - Ghost requires an initial administrator account to be created via the web browser at `http://localhost:2368/ghost` before an Admin API key can be generated.
+   - Lemmy requires an active user token obtained via `POST /api/v3/user/login`.

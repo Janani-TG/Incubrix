@@ -9,6 +9,7 @@
     "start": "node dist/index.js",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:integration": "vitest run tests/e2e tests/integration",
     "certify": "tsx src/cli/certify.ts"
   },
   "keywords": [

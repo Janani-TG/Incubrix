@@ -1,0 +1,19 @@
+{
+  database: {
+    host: "lemmy-db"
+    port: 5432
+    user: "lemmy"
+    password: "password"
+    database: "lemmy"
+    pool_size: 5
+  }
+  hostname: "localhost:8536"
+  bind: "0.0.0.0"
+  port: 8536
+  tls_enabled: false
+  setup: {
+    admin_username: "admin"
+    admin_password: "password123"
+    site_name: "Local Lemmy Test"
+  }
+}
