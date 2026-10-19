@@ -1,0 +1,736 @@
+openapi: 3.1.0
+info:
+  title: IncuBrix Long-Tail Distribution Network API
+  version: 1.0.0
+  description: >
+    Production REST API for multi-platform content distribution, posting-rules enforcement,
+    idempotent execution, background processing, and connector capability certification.
+servers:
+  - url: http://localhost:3000
+    description: Local Development Server
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      description: Returns service health status, uptime, and environment.
+      operationId: getHealth
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: ok
+                timestamp: "2026-10-19T12:00:00.000Z"
+                uptime: 123.45
+                environment: development
+
+  /api/v1/destinations:
+    get:
+      summary: List registered destinations
+      description: Returns all active platform connectors, their declared capabilities, and policy statuses.
+      operationId: listDestinations
+      responses:
+        '200':
+          description: List of registered destinations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  destinations:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DestinationSummary'
+              example:
+                destinations:
+                  - destinationKey: devto
+                    name: DEV.to Community
+                    capabilities:
+                      canPublish: true
+                      canVerify: true
+                      canGetStatus: true
+                      canDelete: true
+                      supportsSimulation: true
+                    rulesConfigured: true
+
+  /api/v1/destinations/{destinationKey}:
+    get:
+      summary: Get destination details
+      description: Retrieves detailed capability and posting-rule configuration for a destination.
+      operationId: getDestination
+      parameters:
+        - name: destinationKey
+          in: path
+          required: true
+          schema:
+            type: string
+          example: devto
+      responses:
+        '200':
+          description: Destination details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  destination:
+                    $ref: '#/components/schemas/DestinationDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/destinations/{destinationKey}/publish:
+    post:
+      summary: Publish content to a destination
+      description: >
+        Submits content for distribution through the policy guard and reliability engine.
+        Synchronous operations complete with HTTP 200/201. Operations exceeding the 2-second deadline
+        or explicitly requesting async mode return HTTP 202 Accepted with a background job handle.
+      operationId: publishContent
+      parameters:
+        - name: destinationKey
+          in: path
+          required: true
+          schema:
+            type: string
+          example: devto
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: Unique client key ensuring idempotent execution.
+          schema:
+            type: string
+          example: post-launch-announcement-001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublishRequestBody'
+            example:
+              content:
+                title: Scalable Long-Tail Distribution Networks
+                body: "Exploring automated modular connectors for multi-platform syndication."
+                summary: Architectural overview of distribution networks.
+                tags: ["engineering", "architecture"]
+                canonicalUrl: "https://example.com/blog/distribution-networks"
+              simulate: false
+              async: false
+      responses:
+        '200':
+          description: Published successfully (cached outcome)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublishResult'
+        '201':
+          description: Published successfully (new execution)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublishResult'
+        '202':
+          description: Accepted for background processing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AsyncJobAcceptedResponse'
+              example:
+                status: queued
+                jobId: job-1718000000000-1-a1b2c3d4
+                destinationKey: devto
+                message: Publishing request queued for background execution.
+                checkStatusUrl: /api/v1/jobs/job-1718000000000-1-a1b2c3d4
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/IdempotencyConflict'
+        '422':
+          description: Posting rule violation (blocked)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuleViolationResponse'
+
+  /api/v1/destinations/{destinationKey}/verify/{externalId}:
+    post:
+      summary: Verify published content
+      description: Verifies content presence and integrity on destination platforms that support verification.
+      operationId: verifyPublication
+      parameters:
+        - name: destinationKey
+          in: path
+          required: true
+          schema:
+            type: string
+          example: devto
+        - name: externalId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "123456"
+      responses:
+        '200':
+          description: Verification confirmed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerifyResult'
+        '404':
+          description: Content not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '501':
+          $ref: '#/components/responses/UnsupportedCapability'
+
+  /api/v1/destinations/{destinationKey}/status/{externalId}:
+    get:
+      summary: Get publication remote status
+      description: Queries lifecycle status of published content from remote destination.
+      operationId: getPublicationStatus
+      parameters:
+        - name: destinationKey
+          in: path
+          required: true
+          schema:
+            type: string
+          example: devto
+        - name: externalId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "123456"
+      responses:
+        '200':
+          description: Status retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetStatusResult'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '501':
+          $ref: '#/components/responses/UnsupportedCapability'
+
+  /api/v1/destinations/{destinationKey}/{externalId}:
+    delete:
+      summary: Delete published content
+      description: Removes content from destination platforms supporting deletion.
+      operationId: deletePublication
+      parameters:
+        - name: destinationKey
+          in: path
+          required: true
+          schema:
+            type: string
+          example: devto
+        - name: externalId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "123456"
+        - name: simulate
+          in: query
+          required: false
+          schema:
+            type: boolean
+          example: false
+      responses:
+        '200':
+          description: Deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteResult'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '501':
+          $ref: '#/components/responses/UnsupportedCapability'
+
+  /api/v1/jobs/{jobId}:
+    get:
+      summary: Get background job status
+      description: Retrieves status and result of an asynchronous background job.
+      operationId: getJobStatus
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: job-1718000000000-1-a1b2c3d4
+      responses:
+        '200':
+          description: Job status and outcome
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  job:
+                    $ref: '#/components/schemas/Job'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/certification/run:
+    post:
+      summary: Run connector certification
+      description: >
+        Executes capability certification for one or all destinations.
+        Defaults to mock/offline mode. Live mode requires explicit allowLive: true.
+      operationId: runCertification
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                destinationKey:
+                  type: string
+                  description: Target destination or omit for all.
+                  example: devto
+                mode:
+                  type: string
+                  enum: [mock, live]
+                  default: mock
+                  example: mock
+                allowLive:
+                  type: boolean
+                  default: false
+                  example: false
+      responses:
+        '200':
+          description: Certification report results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  overallSuccess:
+                    type: boolean
+                  count:
+                    type: integer
+                  reports:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CertificationReport'
+
+  /api/v1/certification:
+    get:
+      summary: List certification reports
+      description: Retrieves history of completed certification runs.
+      operationId: listCertifications
+      responses:
+        '200':
+          description: List of reports
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  reports:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CertificationReport'
+
+  /api/v1/certification/{runId}:
+    get:
+      summary: Get certification report by runId
+      description: Retrieves a specific certification report.
+      operationId: getCertification
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: cert-1718000000000-abcd
+      responses:
+        '200':
+          description: Certification report
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  report:
+                    $ref: '#/components/schemas/CertificationReport'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        timestamp:
+          type: string
+          format: date-time
+        uptime:
+          type: number
+          example: 120.45
+        environment:
+          type: string
+          example: development
+
+    ConnectorCapabilities:
+      type: object
+      properties:
+        canPublish:
+          type: boolean
+        canVerify:
+          type: boolean
+        canGetStatus:
+          type: boolean
+        canDelete:
+          type: boolean
+        supportsSimulation:
+          type: boolean
+
+    DestinationSummary:
+      type: object
+      properties:
+        destinationKey:
+          type: string
+        name:
+          type: string
+        capabilities:
+          $ref: '#/components/schemas/ConnectorCapabilities'
+        rulesConfigured:
+          type: boolean
+
+    DestinationDetail:
+      type: object
+      properties:
+        destinationKey:
+          type: string
+        name:
+          type: string
+        capabilities:
+          $ref: '#/components/schemas/ConnectorCapabilities'
+        rules:
+          type: object
+          nullable: true
+
+    ContentPayload:
+      type: object
+      required:
+        - title
+        - body
+      properties:
+        title:
+          type: string
+          example: Sample Distribution Post Title
+        body:
+          type: string
+          example: Full article or post content formatted in Markdown or plain text.
+        summary:
+          type: string
+          example: Short descriptive summary
+        tags:
+          type: array
+          items:
+            type: string
+          example: ["technology", "engineering"]
+        canonicalUrl:
+          type: string
+          format: uri
+          example: https://example.com/source-article
+        mediaUrls:
+          type: array
+          items:
+            type: string
+        metadata:
+          type: object
+
+    PublishRequestBody:
+      type: object
+      required:
+        - content
+      properties:
+        content:
+          $ref: '#/components/schemas/ContentPayload'
+        simulate:
+          type: boolean
+          default: false
+        async:
+          type: boolean
+          default: false
+        metadata:
+          type: object
+
+    PublishResult:
+      type: object
+      properties:
+        success:
+          type: boolean
+        decision:
+          type: string
+          enum: [allowed, blocked]
+        destinationKey:
+          type: string
+        externalId:
+          type: string
+        externalUrl:
+          type: string
+        status:
+          type: string
+          enum: [draft, pending, published, simulated, failed, deleted, unknown]
+        isSimulated:
+          type: boolean
+        isCached:
+          type: boolean
+        timestamp:
+          type: string
+          format: date-time
+
+    VerifyResult:
+      type: object
+      properties:
+        success:
+          type: boolean
+        destinationKey:
+          type: string
+        externalId:
+          type: string
+        verified:
+          type: boolean
+        status:
+          type: string
+        externalUrl:
+          type: string
+        timestamp:
+          type: string
+
+    GetStatusResult:
+      type: object
+      properties:
+        success:
+          type: boolean
+        destinationKey:
+          type: string
+        externalId:
+          type: string
+        status:
+          type: string
+        timestamp:
+          type: string
+
+    DeleteResult:
+      type: object
+      properties:
+        success:
+          type: boolean
+        destinationKey:
+          type: string
+        externalId:
+          type: string
+        deleted:
+          type: boolean
+        isSimulated:
+          type: boolean
+        timestamp:
+          type: string
+
+    AsyncJobAcceptedResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: queued
+        jobId:
+          type: string
+        destinationKey:
+          type: string
+        message:
+          type: string
+        checkStatusUrl:
+          type: string
+
+    Job:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        destinationKey:
+          type: string
+        status:
+          type: string
+          enum: [queued, running, succeeded, failed]
+        attempts:
+          type: integer
+        maxAttempts:
+          type: integer
+        queuedAt:
+          type: string
+          format: date-time
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        executionDurationMs:
+          type: number
+          nullable: true
+        result:
+          type: object
+          nullable: true
+        error:
+          type: object
+          nullable: true
+
+    RuleViolation:
+      type: object
+      properties:
+        ruleId:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+
+    RuleViolationResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: RuleViolation
+        decision:
+          type: string
+          example: blocked
+        message:
+          type: string
+        violations:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuleViolation'
+        statusCode:
+          type: integer
+          example: 422
+
+    CertificationCheck:
+      type: object
+      properties:
+        name:
+          type: string
+        status:
+          type: string
+          enum: [passed, failed, skipped, unverified]
+        durationMs:
+          type: number
+        message:
+          type: string
+
+    CertificationReport:
+      type: object
+      properties:
+        runId:
+          type: string
+        destinationKey:
+          type: string
+        connectorName:
+          type: string
+        environment:
+          type: string
+          enum: [mock, live]
+        isCertified:
+          type: boolean
+        liveOptIn:
+          type: boolean
+        summary:
+          type: object
+          properties:
+            passed:
+              type: integer
+            failed:
+              type: integer
+            skipped:
+              type: integer
+            unverified:
+              type: integer
+        checks:
+          type: array
+          items:
+            $ref: '#/components/schemas/CertificationCheck'
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        statusCode:
+          type: integer
+
+  responses:
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: NotFound
+            message: Destination or resource was not found.
+            statusCode: 404
+
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: ValidationError
+            message: Header 'Idempotency-Key' is required for publication requests.
+            statusCode: 400
+
+    IdempotencyConflict:
+      description: Idempotency conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: IdempotencyConflict
+            message: Idempotency key was previously used with a materially different request payload.
+            statusCode: 409
+
+    UnsupportedCapability:
+      description: Unsupported capability
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: UnsupportedCapability
+              message:
+                type: string
+              statusCode:
+                type: integer
+                example: 501
+              unsupported:
+                type: boolean
+                example: true
