@@ -64,10 +64,14 @@ npm test
 npm start
 ```
 *Expected output*:
-Server starts listening on port 3000 (e.g. `Server running on http://0.0.0.0:3000`).
+```text
+IncuBrix service listening on http://0.0.0.0:3000
+Environment: development
+Health check available at http://0.0.0.0:3000/health
+```
 
 ### Speaking Points
-> "Now let's launch the compiled production server on port 3000."
+> "Now let's launch the compiled server on port 3000 using `npm start` (which executes `node dist/index.js`)."
 
 ---
 
@@ -75,35 +79,87 @@ Server starts listening on port 3000 (e.g. `Server running on http://0.0.0.0:300
 
 *(All actions executed in Terminal 2)*
 
+> **Windows PowerShell Compatibility Note**:
+> In Windows PowerShell, `curl` is aliased to `Invoke-WebRequest` by default and PowerShell parses/strips quotes inside JSON strings.
+> To ensure immediate, copy-paste execution without quoting errors, use `curl.exe --%` in PowerShell (where `--%` is the PowerShell stop-parsing token).
+> Standard cross-platform Bash commands are also provided for Git Bash, macOS, or Linux.
+
+---
+
 ### 1. Health Check
-```bash
-curl -s http://localhost:3000/health
+
+**Windows PowerShell**:
+```powershell
+curl.exe -s http://localhost:3000/health
 ```
+*Bash alternative: `curl -s http://localhost:3000/health`*
+
 *Expected Result*:
 ```json
-{"status":"ok","timestamp":"...","uptime":...,"environment":"production"}
+{"status":"ok","timestamp":"2026-10-19T...","uptime":14.06,"environment":"development"}
 ```
-> "The `/health` endpoint confirms the service is operational."
+> "The `/health` endpoint confirms the service is operational in the development environment."
 
 ---
 
 ### 2. Destination Discovery & Capability Matrix
-```bash
-curl -s http://localhost:3000/api/v1/destinations
+
+**Windows PowerShell**:
+```powershell
+curl.exe -s http://localhost:3000/api/v1/destinations
 ```
+*Bash alternative: `curl -s http://localhost:3000/api/v1/destinations`*
+
 *Expected Result*:
-JSON array listing all 7 registered connectors (`mock`, `devto`, `ghost`, `discourse`, `lemmy`, `webhook`, `assisted`) and their declared capabilities.
-> "The `/destinations` endpoint exposes registered connectors and their declared capabilities. Note that Webhook explicitly declares `canVerify: false` and `canDelete: false`."
+Returns a JSON object with a `destinations` array listing all 7 registered connectors (`mock`, `devto`, `ghost`, `discourse`, `lemmy`, `webhook`, `assisted`) and their declared capabilities.
+```json
+{
+  "destinations": [
+    {
+      "destinationKey": "mock",
+      "name": "Deterministic Mock Destination",
+      "capabilities": {
+        "canPublish": true,
+        "canVerify": true,
+        "canGetStatus": true,
+        "canDelete": true,
+        "supportsSimulation": true
+      },
+      "rulesConfigured": false
+    },
+    {
+      "destinationKey": "webhook",
+      "name": "Generic HMAC Webhook",
+      "capabilities": {
+        "canPublish": true,
+        "canVerify": false,
+        "canGetStatus": false,
+        "canDelete": false,
+        "supportsSimulation": true
+      },
+      "rulesConfigured": false
+    }
+  ]
+}
+```
+> "The `/destinations` endpoint exposes registered connectors and their declared capabilities. Notice that Webhook explicitly declares `canVerify: false`, `canGetStatus: false`, and `canDelete: false`."
 
 ---
 
 ### 3. Idempotency Validation Guard
+
+**Windows PowerShell**:
+```powershell
+curl.exe --% -s -X POST http://localhost:3000/api/v1/destinations/mock/publish -H "Content-Type: application/json" -d "{\"content\":{\"title\":\"Test\",\"body\":\"Test body\"}}"
+```
+*Bash alternative*:
 ```bash
 curl -s -X POST http://localhost:3000/api/v1/destinations/mock/publish \
   -H "Content-Type: application/json" \
   -d '{"content":{"title":"Test","body":"Test body"}}'
 ```
-*Expected Result*:
+
+*Expected Result (HTTP 400 Bad Request)*:
 ```json
 {"error":"ValidationError","message":"Header 'Idempotency-Key' is required for publication requests.","statusCode":400}
 ```
@@ -112,6 +168,12 @@ curl -s -X POST http://localhost:3000/api/v1/destinations/mock/publish \
 ---
 
 ### 4. Successful Mock Publication
+
+**Windows PowerShell**:
+```powershell
+curl.exe --% -s -X POST http://localhost:3000/api/v1/destinations/mock/publish -H "Content-Type: application/json" -H "Idempotency-Key: demo-video-key-001" -d "{\"content\":{\"title\":\"Scalable Long-Tail Distribution Architecture\",\"body\":\"In-depth guide on modular connectors.\",\"summary\":\"Technical guide\",\"tags\":[\"architecture\",\"typescript\"]},\"simulate\":true}"
+```
+*Bash alternative*:
 ```bash
 curl -s -X POST http://localhost:3000/api/v1/destinations/mock/publish \
   -H "Content-Type: application/json" \
@@ -126,15 +188,26 @@ curl -s -X POST http://localhost:3000/api/v1/destinations/mock/publish \
     "simulate": true
   }'
 ```
+
 *Expected Result (HTTP 201 Created)*:
 ```json
 {
   "success": true,
-  "decision": "allowed",
   "destinationKey": "mock",
   "externalId": "sim-mock-1",
+  "externalUrl": "https://mock.incubrix.local/simulated/sim-mock-1",
   "status": "simulated",
   "isSimulated": true,
+  "timestamp": "2026-10-19T...",
+  "metadata": { "dryRun": true, "simulated": true },
+  "decision": "allowed",
+  "evaluation": {
+    "decision": "allowed",
+    "allowed": true,
+    "destinationKey": "mock",
+    "violations": [],
+    "evaluatedAt": "2026-10-19T..."
+  },
   "isCached": false
 }
 ```
@@ -143,9 +216,16 @@ curl -s -X POST http://localhost:3000/api/v1/destinations/mock/publish \
 ---
 
 ### 5. Exactly-Once Idempotency Replay
-Execute the exact same curl command again:
+
+Execute the exact same request again with `-i` to show the HTTP 200 status header:
+
+**Windows PowerShell**:
+```powershell
+curl.exe --% -i -s -X POST http://localhost:3000/api/v1/destinations/mock/publish -H "Content-Type: application/json" -H "Idempotency-Key: demo-video-key-001" -d "{\"content\":{\"title\":\"Scalable Long-Tail Distribution Architecture\",\"body\":\"In-depth guide on modular connectors.\",\"summary\":\"Technical guide\",\"tags\":[\"architecture\",\"typescript\"]},\"simulate\":true}"
+```
+*Bash alternative*:
 ```bash
-curl -s -X POST http://localhost:3000/api/v1/destinations/mock/publish \
+curl -i -s -X POST http://localhost:3000/api/v1/destinations/mock/publish \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: demo-video-key-001" \
   -d '{
@@ -158,16 +238,24 @@ curl -s -X POST http://localhost:3000/api/v1/destinations/mock/publish \
     "simulate": true
   }'
 ```
+
 *Expected Result (HTTP 200 OK)*:
-Returns the cached result with `"isCached": true` and matching `externalId`.
+Response headers confirm `HTTP/1.1 200 OK`. The body returns the cached result with `"isCached": true` and matching `externalId: "sim-mock-1"` without invoking the connector twice.
 > "When the exact same request is submitted with the same idempotency key, the server returns the cached response with HTTP 200 OK without re-executing the connector."
 
 ---
 
 ### 6. Idempotency Conflict Detection
+
 Execute with the same key (`demo-video-key-001`) but change the title:
+
+**Windows PowerShell**:
+```powershell
+curl.exe --% -i -s -X POST http://localhost:3000/api/v1/destinations/mock/publish -H "Content-Type: application/json" -H "Idempotency-Key: demo-video-key-001" -d "{\"content\":{\"title\":\"Conflicting Different Title\",\"body\":\"In-depth guide on modular connectors.\"},\"simulate\":true}"
+```
+*Bash alternative*:
 ```bash
-curl -s -X POST http://localhost:3000/api/v1/destinations/mock/publish \
+curl -i -s -X POST http://localhost:3000/api/v1/destinations/mock/publish \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: demo-video-key-001" \
   -d '{
@@ -178,7 +266,9 @@ curl -s -X POST http://localhost:3000/api/v1/destinations/mock/publish \
     "simulate": true
   }'
 ```
+
 *Expected Result (HTTP 409 Conflict)*:
+Response headers confirm `HTTP/1.1 409 Conflict`.
 ```json
 {
   "error": "IdempotencyConflict",
@@ -191,8 +281,14 @@ curl -s -X POST http://localhost:3000/api/v1/destinations/mock/publish \
 ---
 
 ### 7. Asynchronous Background Job Transition
+
+**Windows PowerShell**:
+```powershell
+curl.exe --% -i -s -X POST http://localhost:3000/api/v1/destinations/mock/publish -H "Content-Type: application/json" -H "Idempotency-Key: demo-video-async-001" -d "{\"content\":{\"title\":\"Large Ingestion Job\",\"body\":\"Large content payload.\"},\"async\":true}"
+```
+*Bash alternative*:
 ```bash
-curl -s -X POST http://localhost:3000/api/v1/destinations/mock/publish \
+curl -i -s -X POST http://localhost:3000/api/v1/destinations/mock/publish \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: demo-video-async-001" \
   -d '{
@@ -203,32 +299,65 @@ curl -s -X POST http://localhost:3000/api/v1/destinations/mock/publish \
     "async": true
   }'
 ```
+
 *Expected Result (HTTP 202 Accepted)*:
+Response headers confirm `HTTP/1.1 202 Accepted`.
 ```json
 {
   "status": "queued",
-  "jobId": "job-...",
+  "jobId": "job-1792416280209-1-dc3834b6",
   "destinationKey": "mock",
   "message": "Publishing request queued for background execution.",
-  "checkStatusUrl": "/api/v1/jobs/job-..."
+  "checkStatusUrl": "/api/v1/jobs/job-1792416280209-1-dc3834b6"
 }
 ```
 > "Operations requesting asynchronous processing (or operations exceeding the 2-second processing threshold) return HTTP 202 Accepted with a trackable job handle."
 
 Query job status:
-*(Replace `JOB_ID` with the returned jobId)*
-```bash
-curl -s http://localhost:3000/api/v1/jobs/JOB_ID
+*(Replace `job-1792416280209-1-dc3834b6` with the returned jobId)*
+
+**Windows PowerShell**:
+```powershell
+curl.exe -s http://localhost:3000/api/v1/jobs/job-1792416280209-1-dc3834b6
 ```
-*Expected Result*: Returns job record with status (`queued`, `running`, or `succeeded`).
+*Bash alternative: `curl -s http://localhost:3000/api/v1/jobs/JOB_ID`*
+
+*Expected Result (HTTP 200 OK)*:
+```json
+{
+  "job": {
+    "id": "job-1792416280209-1-dc3834b6",
+    "type": "publish",
+    "destinationKey": "mock",
+    "idempotencyKey": "demo-video-async-001",
+    "data": {
+      "destinationKey": "mock",
+      "content": {
+        "title": "Large Ingestion Job",
+        "body": "Large content payload."
+      },
+      "simulate": false
+    },
+    "status": "queued",
+    "attempts": 0,
+    "maxAttempts": 3,
+    "queuedAt": "2026-10-19T..."
+  }
+}
+```
 
 ---
 
 ### 8. Explicit Unsupported Capability Handling
-```bash
-curl -s -X POST http://localhost:3000/api/v1/destinations/webhook/verify/test-id-123
+
+**Windows PowerShell**:
+```powershell
+curl.exe --% -i -s -X POST http://localhost:3000/api/v1/destinations/webhook/verify/test-id-123
 ```
-*Expected Result (HTTP 501)*:
+*Bash alternative: `curl -i -s -X POST http://localhost:3000/api/v1/destinations/webhook/verify/test-id-123`*
+
+*Expected Result (HTTP 501 Not Implemented)*:
+Response headers confirm `HTTP/1.1 501 Not Implemented`.
 ```json
 {
   "error": "UnsupportedCapability",
@@ -260,13 +389,13 @@ Target Destination(s): mock
    [✓] Publish Operation: PASSED (0ms) - Publish succeeded with externalId: sim-mock-1
    [✓] Verify Operation: PASSED (0ms) - Verification confirmed for externalId: sim-mock-1
    [✓] GetStatus Operation: PASSED (0ms) - Status query returned: simulated
-   [✓] Delete & Cleanup Operation: PASSED (0ms) - Test content cleaned up successfully for externalId: sim-mock-1
+   [✓] Delete & Cleanup Operation: PASSED (1ms) - Test content cleaned up successfully for externalId: sim-mock-1
    Outcome: CERTIFIED
 
 ====================================================
 Summary: 4 Passed | 0 Failed | 0 Skipped | 0 Unverified
 ====================================================
-JSON report saved to: .../certification-report-...json
+JSON report saved to: D:\Projects\Incubrix\artifacts\certification\certification-report-...json
 ```
 
 ### Speaking Points
@@ -282,9 +411,11 @@ JSON report saved to: .../certification-report-...json
 ```bash
 docker compose config
 ```
+*Expected Output*:
+Validates `docker-compose.yml` configuration and environment interpolation without errors, printing the resolved services (`app`, `ghost`, `lemmy`, `lemmy-db`) and exiting with code 0.
 
 ### Speaking Points
-> "For containerized local deployment, `docker-compose.yml` orchestrates our multi-stage Node.js application alongside local Ghost CMS, Lemmy federated aggregator, and PostgreSQL instances, equipped with health checks.
+> "For containerized deployment, `docker-compose.yml` orchestrates our multi-stage Node.js application alongside local Ghost CMS, Lemmy federated aggregator, and PostgreSQL instances, equipped with health checks.
 >
 > In conclusion, the system provides a robust foundation for multi-platform distribution with verified policy enforcement, reliability, and capability certification. Thank you."
 
