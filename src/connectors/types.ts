@@ -79,6 +79,7 @@ export interface VerifyRequest {
   externalId: string;
   expectedContentHash?: string;
   externalUrl?: string;
+  simulate?: boolean;
 }
 
 /**
@@ -104,6 +105,7 @@ export interface VerifyResult {
 export interface GetStatusRequest {
   destinationKey: string;
   externalId: string;
+  simulate?: boolean;
 }
 
 /**

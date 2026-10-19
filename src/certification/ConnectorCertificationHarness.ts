@@ -111,6 +111,7 @@ export class ConnectorCertificationHarness {
           const verifyResult = await connector.verify({
             destinationKey: connector.destinationKey,
             externalId: publishedExternalId,
+            simulate: !isLive,
           });
           const verifyDuration = Date.now() - verifyStart;
 
@@ -120,6 +121,7 @@ export class ConnectorCertificationHarness {
               status: 'passed',
               durationMs: verifyDuration,
               message: `Verification confirmed for externalId: ${publishedExternalId}`,
+              details: verifyResult.details,
             });
           } else {
             checks.push({
@@ -151,6 +153,7 @@ export class ConnectorCertificationHarness {
       const unsuppResult = await connector.verify({
         destinationKey: connector.destinationKey,
         externalId: 'test-unsupported-id',
+        simulate: !isLive,
       });
       const unsuppDuration = Date.now() - unsuppStart;
 
@@ -179,6 +182,7 @@ export class ConnectorCertificationHarness {
           const statusResult = await connector.getStatus({
             destinationKey: connector.destinationKey,
             externalId: publishedExternalId,
+            simulate: !isLive,
           });
           const statusDuration = Date.now() - statusStart;
 
@@ -188,6 +192,7 @@ export class ConnectorCertificationHarness {
               status: 'passed',
               durationMs: statusDuration,
               message: `Status query returned: ${statusResult.status}`,
+              details: statusResult.details,
             });
           } else {
             checks.push({
@@ -219,6 +224,7 @@ export class ConnectorCertificationHarness {
       const unsuppResult = await connector.getStatus({
         destinationKey: connector.destinationKey,
         externalId: 'test-unsupported-id',
+        simulate: !isLive,
       });
       const unsuppDuration = Date.now() - unsuppStart;
 

@@ -59,10 +59,16 @@ export class AssistedConnector extends BaseConnector {
     return resolvedPath;
   }
 
-  public async publish(request: PublishRequest): Promise<PublishResult> {
-    const packId = `pack-${this.destinationKey}-${Date.now()}`;
+  public getOutputDirectory(): string {
+    return this.outputDirectory;
+  }
 
-    if (request.simulate === true) {
+  public async publish(request: PublishRequest): Promise<PublishResult> {
+    const isSimulated = request.simulate === true;
+    const prefix = isSimulated ? 'sim' : 'pack';
+    const packId = `${prefix}-${this.destinationKey}-${Date.now()}`;
+
+    if (isSimulated) {
       return {
         success: true,
         destinationKey: this.destinationKey,
@@ -120,9 +126,22 @@ export class AssistedConnector extends BaseConnector {
         `5. Confirm publication and record published link.`,
       ].join('\n');
 
-      fs.writeFileSync(path.join(packDir, 'manifest.json'), JSON.stringify(manifest, null, 2), 'utf-8');
-      fs.writeFileSync(path.join(packDir, 'content.md'), request.content.body, 'utf-8');
-      fs.writeFileSync(path.join(packDir, 'instructions.txt'), instructions, 'utf-8');
+      const manifestPath = path.join(packDir, 'manifest.json');
+      const contentPath = path.join(packDir, 'content.md');
+      const instructionsPath = path.join(packDir, 'instructions.txt');
+
+      fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
+      fs.writeFileSync(contentPath, request.content.body, 'utf-8');
+      fs.writeFileSync(instructionsPath, instructions, 'utf-8');
+
+      // Verify pack files are written successfully before reporting success
+      if (
+        !fs.existsSync(manifestPath) ||
+        !fs.existsSync(contentPath) ||
+        !fs.existsSync(instructionsPath)
+      ) {
+        throw new Error('Pack files were not successfully written to disk.');
+      }
 
       return {
         success: true,
@@ -155,6 +174,19 @@ export class AssistedConnector extends BaseConnector {
   }
 
   public async verify(request: VerifyRequest): Promise<VerifyResult> {
+    if (request.simulate === true) {
+      return {
+        success: true,
+        destinationKey: this.destinationKey,
+        externalId: request.externalId,
+        verified: true,
+        status: 'simulated',
+        externalUrl: `file://${this.outputDirectory.replace(/\\/g, '/')}/simulated/${request.externalId}/manifest.json`,
+        timestamp: this.createTimestamp(),
+        details: { isSimulated: true },
+      };
+    }
+
     try {
       const packDir = this.resolvePackPath(request.externalId);
       const manifestPath = path.join(packDir, 'manifest.json');
@@ -201,9 +233,21 @@ export class AssistedConnector extends BaseConnector {
   }
 
   public async getStatus(request: GetStatusRequest): Promise<GetStatusResult> {
+    if (request.simulate === true) {
+      return {
+        success: true,
+        destinationKey: this.destinationKey,
+        externalId: request.externalId,
+        status: 'simulated',
+        timestamp: this.createTimestamp(),
+        details: { isSimulated: true },
+      };
+    }
+
     const verified = await this.verify({
       destinationKey: this.destinationKey,
       externalId: request.externalId,
+      simulate: request.simulate,
     });
 
     return {

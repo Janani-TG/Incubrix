@@ -146,6 +146,19 @@ export class DiscourseConnector extends BaseConnector {
   }
 
   public async verify(request: VerifyRequest): Promise<VerifyResult> {
+    if (request.simulate === true || request.externalId.startsWith('sim-')) {
+      return {
+        success: true,
+        destinationKey: this.destinationKey,
+        externalId: request.externalId,
+        verified: true,
+        status: 'simulated',
+        externalUrl: `${this.baseUrl}/simulated/${request.externalId}`,
+        timestamp: this.createTimestamp(),
+        details: { isSimulated: true },
+      };
+    }
+
     if (!this.apiKey) {
       return {
         success: false,
@@ -206,9 +219,21 @@ export class DiscourseConnector extends BaseConnector {
   }
 
   public async getStatus(request: GetStatusRequest): Promise<GetStatusResult> {
+    if (request.simulate === true || request.externalId.startsWith('sim-')) {
+      return {
+        success: true,
+        destinationKey: this.destinationKey,
+        externalId: request.externalId,
+        status: 'simulated',
+        timestamp: this.createTimestamp(),
+        details: { isSimulated: true, url: `${this.baseUrl}/simulated/${request.externalId}` },
+      };
+    }
+
     const verified = await this.verify({
       destinationKey: this.destinationKey,
       externalId: request.externalId,
+      simulate: request.simulate,
     });
 
     return {
@@ -223,7 +248,7 @@ export class DiscourseConnector extends BaseConnector {
   }
 
   public async delete(request: DeleteRequest): Promise<DeleteResult> {
-    if (request.simulate === true) {
+    if (request.simulate === true || request.externalId.startsWith('sim-')) {
       return {
         success: true,
         destinationKey: this.destinationKey,

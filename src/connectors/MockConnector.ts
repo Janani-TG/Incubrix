@@ -219,7 +219,7 @@ export class MockConnector extends BaseConnector {
     }
 
     // Verification of simulated ID
-    if (request.externalId.startsWith('sim-')) {
+    if (request.simulate === true || request.externalId.startsWith('sim-')) {
       return {
         success: true,
         destinationKey: this.destinationKey,
@@ -281,7 +281,7 @@ export class MockConnector extends BaseConnector {
       };
     }
 
-    if (request.externalId.startsWith('sim-')) {
+    if (request.simulate === true || request.externalId.startsWith('sim-')) {
       return {
         success: true,
         destinationKey: this.destinationKey,
@@ -355,7 +355,7 @@ export class MockConnector extends BaseConnector {
       };
     }
 
-    if (request.simulate === true) {
+    if (request.simulate === true || request.externalId.startsWith('sim-')) {
       return {
         success: true,
         destinationKey: this.destinationKey,

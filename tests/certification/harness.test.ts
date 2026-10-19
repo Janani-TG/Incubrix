@@ -68,9 +68,25 @@ describe('ConnectorCertificationHarness', () => {
       expect(report.environment).toBe('mock');
       expect(report.liveOptIn).toBe(false);
     });
+
+    it('should certify all seven registered destination connectors in mock mode with zero failures', async () => {
+      const { connectorRegistry, registerStandardConnectors } = await import('../../src/connectors');
+      registerStandardConnectors(connectorRegistry);
+
+      const allConnectors = connectorRegistry.getAll();
+      expect(allConnectors.length).toBe(7);
+
+      for (const connector of allConnectors) {
+        const report = await harness.certify(connector, { mode: 'mock' });
+        expect(report.isCertified).toBe(true);
+        expect(report.environment).toBe('mock');
+        expect(report.summary.failed).toBe(0);
+        expect(report.summary.passed).toBeGreaterThanOrEqual(4);
+      }
+    });
   });
 
-  describe('Live Certification Guards', () => {
+  describe('Live Certification Guards and Missing Credentials', () => {
     it('should reject live certification mode if allowLive is not explicitly opted into', async () => {
       const mockConn = new MockConnector();
 
@@ -83,6 +99,56 @@ describe('ConnectorCertificationHarness', () => {
       expect(report.summary.unverified).toBeGreaterThan(0);
       expect(report.checks[0]?.status).toBe('unverified');
       expect(report.checks[0]?.message).toContain('allowLive flag was not explicitly provided');
+    });
+
+    it('should truthfully fail unconfigured external connectors in live mode when credentials are missing', async () => {
+      const { DevtoConnector } = await import('../../src/connectors/implementations/DevtoConnector');
+      const { GhostConnector } = await import('../../src/connectors/implementations/GhostConnector');
+      const { DiscourseConnector } = await import('../../src/connectors/implementations/DiscourseConnector');
+      const { LemmyConnector } = await import('../../src/connectors/implementations/LemmyConnector');
+
+      const unconfiguredConnectors = [
+        new DevtoConnector({ apiKey: '' }),
+        new GhostConnector({ adminApiKey: '' }),
+        new DiscourseConnector({ apiKey: '' }),
+        new LemmyConnector({ authToken: '' }),
+      ];
+
+      for (const connector of unconfiguredConnectors) {
+        const report = await harness.certify(connector, { mode: 'live', allowLive: true });
+        expect(report.isCertified).toBe(false);
+        expect(report.environment).toBe('live');
+        expect(report.summary.failed).toBeGreaterThan(0);
+
+        const pubCheck = report.checks.find((c) => c.name === 'Publish Operation');
+        expect(pubCheck?.status).toBe('failed');
+        expect(pubCheck?.message).toMatch(/AUTH_CONFIG_MISSING|API[- ]?key|token/i);
+      }
+    });
+
+    it('should certify AssistedConnector in live mode and clean up on-disk files', async () => {
+      const path = await import('path');
+      const fs = await import('fs');
+      const { AssistedConnector } = await import('../../src/connectors/implementations/AssistedConnector');
+
+      const testLiveDir = path.resolve(process.cwd(), 'scratch/assisted_live_cert_test');
+      if (fs.existsSync(testLiveDir)) {
+        fs.rmSync(testLiveDir, { recursive: true, force: true });
+      }
+
+      const assistedConn = new AssistedConnector({ outputDirectory: testLiveDir });
+      const report = await harness.certify(assistedConn, { mode: 'live', allowLive: true });
+
+      expect(report.isCertified).toBe(true);
+      expect(report.environment).toBe('live');
+      expect(report.summary.failed).toBe(0);
+      expect(report.summary.passed).toBe(4);
+
+      // Verify cleanup: test content was deleted
+      const remainingFiles = fs.readdirSync(testLiveDir);
+      expect(remainingFiles).toHaveLength(0);
+
+      fs.rmSync(testLiveDir, { recursive: true, force: true });
     });
   });
 

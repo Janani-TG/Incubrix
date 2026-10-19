@@ -145,9 +145,61 @@ describe('AssistedConnector (Manual Publishing Packager)', () => {
       expect(deleteResult.deleted).toBe(true);
       expect(fs.existsSync(packDir)).toBe(false);
     });
+
+    it('should support complete simulated lifecycle (publish -> verify -> status -> delete) without touching disk', async () => {
+      // 1. Publish simulation
+      const pub = await connector.publish({
+        destinationKey: 'assisted-linkedin',
+        content,
+        simulate: true,
+      });
+      expect(pub.success).toBe(true);
+      expect(pub.isSimulated).toBe(true);
+      expect(pub.status).toBe('simulated');
+      expect(pub.externalId).toMatch(/^sim-assisted-linkedin-/);
+
+      // Verify no files on disk
+      expect(fs.readdirSync(testOutputDir)).toHaveLength(0);
+
+      // 2. Verify simulation
+      const ver = await connector.verify({
+        destinationKey: 'assisted-linkedin',
+        externalId: pub.externalId!,
+        simulate: true,
+      });
+      expect(ver.success).toBe(true);
+      expect(ver.verified).toBe(true);
+      expect(ver.status).toBe('simulated');
+
+      // 3. Status simulation
+      const st = await connector.getStatus({
+        destinationKey: 'assisted-linkedin',
+        externalId: pub.externalId!,
+        simulate: true,
+      });
+      expect(st.success).toBe(true);
+      expect(st.status).toBe('simulated');
+
+      // 4. Delete simulation
+      const del = await connector.delete({
+        destinationKey: 'assisted-linkedin',
+        externalId: pub.externalId!,
+        simulate: true,
+      });
+      expect(del.success).toBe(true);
+      expect(del.deleted).toBe(true);
+      expect(del.isSimulated).toBe(true);
+
+      // Still zero files on disk
+      expect(fs.readdirSync(testOutputDir)).toHaveLength(0);
+    });
   });
 
-  describe('Path Traversal Prevention', () => {
+  describe('Path Traversal Prevention & Output Directory', () => {
+    it('should expose resolved output directory', () => {
+      expect(connector.getOutputDirectory()).toBe(testOutputDir);
+    });
+
     it('should safely sanitize directory resolution and prevent path traversal attacks', async () => {
       // Pack ID with path traversal characters gets sanitized
       const sanitizedResult = await connector.verify({
@@ -158,6 +210,56 @@ describe('AssistedConnector (Manual Publishing Packager)', () => {
       // Does not throw an unhandled error or escape the output dir, reports not found safely
       expect(sanitizedResult.success).toBe(false);
       expect(sanitizedResult.error?.code).toBe('NOT_FOUND');
+    });
+  });
+
+  describe('Non-Simulated Requests with sim- IDs Safeguards', () => {
+    it('should NOT bypass disk verification for sim- IDs in non-simulated requests', async () => {
+      const verifyExplicitFalse = await connector.verify({
+        destinationKey: 'assisted-linkedin',
+        externalId: 'sim-unauthorized-pack',
+        simulate: false,
+      });
+      expect(verifyExplicitFalse.success).toBe(false);
+      expect(verifyExplicitFalse.verified).toBe(false);
+      expect(verifyExplicitFalse.error?.code).toBe('NOT_FOUND');
+
+      const verifyOmitted = await connector.verify({
+        destinationKey: 'assisted-linkedin',
+        externalId: 'sim-unauthorized-pack',
+      });
+      expect(verifyOmitted.success).toBe(false);
+      expect(verifyOmitted.verified).toBe(false);
+      expect(verifyOmitted.error?.code).toBe('NOT_FOUND');
+    });
+
+    it('should NOT bypass getStatus disk verification for sim- IDs in non-simulated requests', async () => {
+      const statusRes = await connector.getStatus({
+        destinationKey: 'assisted-linkedin',
+        externalId: 'sim-unauthorized-pack',
+        simulate: false,
+      });
+      expect(statusRes.success).toBe(false);
+      expect(statusRes.error?.code).toBe('NOT_FOUND');
+    });
+
+    it('should NOT bypass disk deletion safeguards for sim- IDs in non-simulated requests', async () => {
+      const deleteExplicitFalse = await connector.delete({
+        destinationKey: 'assisted-linkedin',
+        externalId: 'sim-unauthorized-pack',
+        simulate: false,
+      });
+      expect(deleteExplicitFalse.success).toBe(false);
+      expect(deleteExplicitFalse.deleted).toBe(false);
+      expect(deleteExplicitFalse.error?.code).toBe('NOT_FOUND');
+
+      const deleteOmitted = await connector.delete({
+        destinationKey: 'assisted-linkedin',
+        externalId: 'sim-unauthorized-pack',
+      });
+      expect(deleteOmitted.success).toBe(false);
+      expect(deleteOmitted.deleted).toBe(false);
+      expect(deleteOmitted.error?.code).toBe('NOT_FOUND');
     });
   });
 });

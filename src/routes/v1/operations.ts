@@ -34,11 +34,13 @@ export function createOperationsRouter(connectorRegistry: ConnectorRegistry): Ro
       }
 
       const connector = connectorRegistry.get(destinationKey);
+      const simulate = req.query.simulate === 'true';
 
       try {
         const result = await connector.verify({
           destinationKey,
           externalId,
+          simulate,
         });
 
         if (result.unsupported === true) {
@@ -88,11 +90,13 @@ export function createOperationsRouter(connectorRegistry: ConnectorRegistry): Ro
       }
 
       const connector = connectorRegistry.get(destinationKey);
+      const simulate = req.query.simulate === 'true';
 
       try {
         const result = await connector.getStatus({
           destinationKey,
           externalId,
+          simulate,
         });
 
         if (result.unsupported === true) {
