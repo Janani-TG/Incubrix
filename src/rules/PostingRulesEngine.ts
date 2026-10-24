@@ -7,6 +7,8 @@ import { evaluateFrequencyLimit } from './evaluators/frequencyLimit';
 import { evaluateSelfPromotion } from './evaluators/selfPromotion';
 import { evaluateLinkRestrictions } from './evaluators/linkRestrictions';
 import { evaluateAiDisclosure } from './evaluators/aiDisclosure';
+import { evaluateTrackingLinks } from './evaluators/trackingLinks';
+import { evaluatePublishingSlots } from './evaluators/publishingSlots';
 
 export interface EvaluateOptions {
   simulate?: boolean;
@@ -91,6 +93,27 @@ export class PostingRulesEngine {
         config.aiDisclosure
       );
       violations.push(...aiViolations);
+    }
+
+    // 5. Evaluate verified tracking links
+    if (config.trackingLinks) {
+      const trackingViolations = evaluateTrackingLinks(
+        destinationKey,
+        content,
+        config.trackingLinks
+      );
+      violations.push(...trackingViolations);
+    }
+
+    // 6. Evaluate publishing slots and schedule capacity
+    if (config.publishingSlots) {
+      const slotViolations = await evaluatePublishingSlots(
+        destinationKey,
+        config.publishingSlots,
+        this.historyStore,
+        this.clock
+      );
+      violations.push(...slotViolations);
     }
 
     const allowed = violations.length === 0;

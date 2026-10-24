@@ -9,3 +9,7 @@ export * from './evaluators/frequencyLimit';
 export * from './evaluators/selfPromotion';
 export * from './evaluators/linkRestrictions';
 export * from './evaluators/aiDisclosure';
+export * from './evaluators/trackingLinks';
+export * from './evaluators/publishingSlots';
+export * from './utils/trackingLinks';
+export * from './utils/slotCalculator';

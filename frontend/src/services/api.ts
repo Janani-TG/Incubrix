@@ -1,4 +1,4 @@
-﻿import type {
+import type {
   HealthResponse,
   DestinationSummary,
   DestinationDetail,
@@ -12,6 +12,9 @@
   CertificationReport,
   CertificationRunResponse,
   ApiError,
+  DestinationSlotsResponse,
+  TrackingVerifyResult,
+  TrackingGenerateResult,
 } from '../types/api';
 
 // Configurable API base URL, defaulting to local backend at http://localhost:3000
@@ -216,6 +219,41 @@ export const api = {
         mode: 'mock',
         allowLive: false,
       }),
+    });
+  },
+
+  /**
+   * GET /api/v1/destinations/:destinationKey/slots
+   */
+  async getDestinationSlots(destinationKey: string): Promise<DestinationSlotsResponse> {
+    return request<DestinationSlotsResponse>(`/api/v1/destinations/${encodeURIComponent(destinationKey)}/slots`);
+  },
+
+  /**
+   * POST /api/v1/tracking/verify
+   */
+  async verifyTrackingLink(url: string, destinationKey?: string): Promise<TrackingVerifyResult> {
+    return request<TrackingVerifyResult>('/api/v1/tracking/verify', {
+      method: 'POST',
+      body: JSON.stringify({ url, destinationKey }),
+    });
+  },
+
+  /**
+   * POST /api/v1/tracking/generate
+   */
+  async generateTrackingLink(payload: {
+    baseUrl: string;
+    destinationKey: string;
+    utmMedium?: string;
+    utmCampaign?: string;
+    utmTerm?: string;
+    utmContent?: string;
+    sign?: boolean;
+  }): Promise<TrackingGenerateResult> {
+    return request<TrackingGenerateResult>('/api/v1/tracking/generate', {
+      method: 'POST',
+      body: JSON.stringify(payload),
     });
   },
 };
