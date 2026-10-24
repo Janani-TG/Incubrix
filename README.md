@@ -96,19 +96,74 @@ CERTIFICATION_OUTPUT_DIR=./artifacts/certification
 
 ---
 
+---
+
+## Web Dashboard & Simulator
+
+IncuBrix includes a polished, responsive web dashboard built with React, Vite, and TypeScript. The dashboard connects to the Express REST API at `http://localhost:3000` and provides complete visibility into connector capabilities, posting rules evaluation, idempotent replay verification, and certification reports.
+
+> **Safety Notice:** All publishing actions initiated through the Web Dashboard strictly default to dry-run simulation mode (`simulate: true`). Real external platforms are never targeted from the UI.
+
+### Key Dashboard Pages
+
+1. **Overview**: Real-time service health (`/health`), uptime, environment details, registered destination counts, and activity highlights.
+2. **Destinations**: Full connector capability matrix (`canPublish`, `canVerify`, `canGetStatus`, `canDelete`, `supportsSimulation`) and posting rules policy inspector (`/api/v1/destinations/:destinationKey`).
+3. **Publish Simulator**: Safe content submission form supporting destination selection, required `Idempotency-Key` generation/replay, markdown body editor, and automatic polling for background asynchronous jobs (HTTP 202).
+4. **Results & Audit Logs**: Detailed breakdown of publish decisions (`allowed` vs `blocked`), simulated/external IDs, idempotency replay statuses (`isCached: true`), rule violation alerts, and post-publish lifecycle verification actions (`verify`, `status`, `delete`).
+5. **Certification**: Visual presentation of actual connector certification reports (`GET /api/v1/certification`), interactive in-memory mock certification suite runner (`POST /api/v1/certification/run`), and terminal CLI instructions (`npm run certify`).
+
+---
+
 ## Build and Run
 
-### Development Mode
-Runs the application with hot-reloading via `tsx`:
+### Concurrent Development (Recommended)
+
+To start both the backend API (`http://localhost:3000`) and the web dashboard (`http://localhost:5173`) concurrently in a single terminal:
+
 ```bash
+npm run dev:all
+```
+
+### Running Services Individually
+
+#### 1. Backend Service
+```bash
+# Install backend dependencies (if not already installed)
+npm install
+
+# Start Express backend with hot-reload on http://localhost:3000
 npm run dev
 ```
 
-### Production Build & Execution
-Compile TypeScript to JavaScript and run:
+#### 2. Frontend Web Dashboard
 ```bash
+# Install frontend dependencies (if not already installed)
+npm run frontend:install
+# (or: cd frontend && npm install)
+
+# Start Vite dashboard dev server on http://localhost:5173
+npm run frontend:dev
+# (or: cd frontend && npm run dev)
+```
+
+### Production Build & Execution
+
+```bash
+# Compile backend TypeScript
 npm run build
+
+# Build frontend production bundle
+npm run frontend:build
+
+# Start production backend server
 npm start
+```
+
+### Linting & Code Quality
+
+```bash
+# Lint frontend code with Oxlint
+npm run frontend:lint
 ```
 
 ### Automated Testing
