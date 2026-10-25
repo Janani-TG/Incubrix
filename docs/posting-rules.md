@@ -66,20 +66,6 @@ The posting-rules engine evaluates content payloads against destination-specific
 - **Conditional & Global Mandates**: Requires disclosure if content is marked as AI-assisted or if the destination mandates disclosure for all content.
 - **Verification Methods**: Complies if either a recognized disclaimer phrase (e.g. `"generated with ai"`, `"ai-assisted"`) is present in the text OR a required disclosure tag (e.g. `ai-generated`) is included.
 
-### 5. Verified Tracking Links (`RULE_TRACKING_LINKS`)
-- **Attribution & UTM Parameters**: Enforces standard query parameters (e.g. `utm_source`, `utm_medium`, `utm_campaign`).
-- **Destination Source Validation**: Can strictly enforce that `utm_source` matches the target destination (`enforceDestinationUtmSource`).
-- **Domain Verification**: Enforces allowed tracking domains (`allowedTrackingDomains`) and blocks deceptive redirectors/shorteners (`disallowedTrackingDomains`).
-- **Cryptographic Signatures**: Supports HMAC-SHA256 URL signatures (`?sig=...`) to ensure tracking links have not been altered or forged.
-- **Protocol Enforcement**: Enforces `requireHttps: true` on all tracking links.
-
-### 6. Publishing Slots & Scheduling (`RULE_PUBLISHING_SLOTS`)
-- **Time Windows**: Configurable 24-hour time slots (`HH:mm` start and end) with timezone support (e.g. `UTC`).
-- **Day-of-Week Policies**: Restricts publishing to approved days (e.g. weekdays only: `daysOfWeek: [1, 2, 3, 4, 5]`).
-- **Slot Capacity Quotas**: Enforces maximum publications per active slot (`maxPostsPerSlot`) evaluated against `PublicationHistoryStore`.
-- **Next Slot Prediction**: When rejected outside of an active slot, details the exact start time of the next available publishing window.
-- **Slot Inspection API**: Dedicated endpoint `GET /api/v1/destinations/:destinationKey/slots` exposing active slot status and remaining capacity.
-
 ---
 
 ## Guarded Publishing Pipeline (`GuardedPublishService`)

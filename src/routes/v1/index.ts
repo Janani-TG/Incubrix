@@ -12,7 +12,6 @@ import { createPublishRouter } from './publish';
 import { createOperationsRouter } from './operations';
 import { createJobsRouter } from './jobs';
 import { createCertificationRouter } from './certification';
-import { createTrackingRouter } from './tracking';
 import { PublishRequest } from '../../connectors/types';
 
 export interface ServiceContainer {
@@ -90,7 +89,7 @@ export function createV1Router(container: ServiceContainer = defaultContainer): 
   const router = Router();
 
   // /api/v1/destinations
-  router.use('/destinations', createDestinationsRouter(container.connectorRegistry, container.rulesRegistry, container.historyStore));
+  router.use('/destinations', createDestinationsRouter(container.connectorRegistry, container.rulesRegistry));
 
   // /api/v1/destinations/:destinationKey/publish
   router.use('/destinations', createPublishRouter(container.reliablePublishService, container.jobService, container.connectorRegistry));
@@ -103,9 +102,6 @@ export function createV1Router(container: ServiceContainer = defaultContainer): 
 
   // /api/v1/certification
   router.use('/certification', createCertificationRouter(container.connectorRegistry, container.certificationHarness, container.certificationStore));
-
-  // /api/v1/tracking
-  router.use('/tracking', createTrackingRouter(container.rulesRegistry));
 
   return router;
 }

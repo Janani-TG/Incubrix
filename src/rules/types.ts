@@ -8,8 +8,6 @@ export const RuleId = {
   SELF_PROMOTION: 'RULE_SELF_PROMOTION',
   LINK_RESTRICTIONS: 'RULE_LINK_RESTRICTIONS',
   AI_DISCLOSURE: 'RULE_AI_DISCLOSURE',
-  TRACKING_LINKS: 'RULE_TRACKING_LINKS',
-  PUBLISHING_SLOTS: 'RULE_PUBLISHING_SLOTS',
 } as const;
 
 export type RuleIdType = typeof RuleId[keyof typeof RuleId];
@@ -84,82 +82,6 @@ export interface AiDisclosureRuleConfig {
 }
 
 /**
- * Configuration for verified tracking links.
- */
-export interface TrackingLinksRuleConfig {
-  enabled?: boolean;
-  /**
-   * If true, all external links in the content must be verified tracking links.
-   */
-  requireTrackingLinks?: boolean;
-  /**
-   * Allowed domains for tracking/attribution links.
-   */
-  allowedTrackingDomains?: string[];
-  /**
-   * Prohibited tracker/shortener domains.
-   */
-  disallowedTrackingDomains?: string[];
-  /**
-   * Required query parameters on tracking links (e.g. ['utm_source', 'utm_medium']).
-   */
-  requiredTrackingParams?: string[];
-  /**
-   * Prohibited query parameters (e.g. ['affiliate_id', 'payout_token']).
-   */
-  disallowedTrackingParams?: string[];
-  /**
-   * If true, the `utm_source` query parameter must match the destinationKey (case-insensitive).
-   */
-  enforceDestinationUtmSource?: boolean;
-  /**
-   * If true, tracking links must use HTTPS. Defaults to true.
-   */
-  requireHttps?: boolean;
-  /**
-   * Optional secret for verifying cryptographically signed tracking links (?sig=...).
-   */
-  signatureSecret?: string;
-}
-
-/**
- * Definition of a single publishing slot.
- */
-export interface PublishingSlot {
-  id?: string;
-  name?: string;
-  /**
-   * Slot start time in 24-hour format: "HH:mm" (e.g. "09:00").
-   */
-  start: string;
-  /**
-   * Slot end time in 24-hour format: "HH:mm" (e.g. "17:00").
-   */
-  end: string;
-  /**
-   * Days of week this slot is active (0 = Sunday, 1 = Monday, ..., 6 = Saturday).
-   * If omitted, slot applies to all days.
-   */
-  daysOfWeek?: number[];
-  /**
-   * Maximum allowed publications during this single slot.
-   */
-  maxPostsPerSlot?: number;
-}
-
-/**
- * Configuration for destination publishing slots / scheduling windows.
- */
-export interface PublishingSlotsRuleConfig {
-  enabled?: boolean;
-  slots: PublishingSlot[];
-  /**
-   * Timezone for evaluating slot times (defaults to 'UTC').
-   */
-  timezone?: string;
-}
-
-/**
  * Aggregate destination posting rules configuration.
  */
 export interface DestinationRulesConfig {
@@ -168,8 +90,6 @@ export interface DestinationRulesConfig {
   selfPromotion?: SelfPromotionRuleConfig;
   linkRestrictions?: LinkRestrictionsRuleConfig;
   aiDisclosure?: AiDisclosureRuleConfig;
-  trackingLinks?: TrackingLinksRuleConfig;
-  publishingSlots?: PublishingSlotsRuleConfig;
 }
 
 /**
